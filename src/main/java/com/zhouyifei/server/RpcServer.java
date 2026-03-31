@@ -23,7 +23,9 @@ public class RpcServer {
             log.info("正在监听端口{}",port);
             while(true) {
                 Socket socket = serverSocket.accept();
-                handleConnect(socket);
+
+                Thread t = new Thread(() -> handleConnect(socket),"serverThread");
+                t.start();
             }
         } catch (IOException e) {
             log.error("初始化字接套异常。异常状况：",e);
@@ -64,6 +66,7 @@ public class RpcServer {
             Object res = serviceMethod.invoke(serviceInterface,args);
             oos.writeObject(res);
             oos.flush();
+
         } catch (ClassNotFoundException e) {
             log.error("读出对象异常。异常状况：",e);
             throw new RuntimeException(e);

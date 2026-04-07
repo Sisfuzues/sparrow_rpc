@@ -1,7 +1,6 @@
-package com.zhouyifei.config;
+package com.zhouyifei.core.config;
 
 import lombok.Getter;
-import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;

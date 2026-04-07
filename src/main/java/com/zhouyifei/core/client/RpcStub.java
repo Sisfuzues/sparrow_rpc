@@ -1,8 +1,8 @@
-package com.zhouyifei.client;
+package com.zhouyifei.core.client;
 
 
 import com.zhouyifei.api.RpcRequest;
-import com.zhouyifei.config.ConfigManager;
+import com.zhouyifei.core.config.ConfigManager;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.*;

@@ -16,4 +16,12 @@ public interface RpcServerMBean {
     double getAvgTime();
 
     Map<String,String> getMethodStatistics();
+
+    int getThreadNum();
+
+    int getBlockingQueue();
+
+    Long getTotalDone();
+
+    String getThreadInfo();
 }

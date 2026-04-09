@@ -16,14 +16,13 @@ public class MonitorProxy implements InvocationHandler {
         Method realMethod = realWorker.getClass()
                 .getMethod(method.getName(),method.getParameterTypes());
         if(realMethod.isAnnotationPresent(Monitor.class)){
-            Long beginTime = System.currentTimeMillis();
+            long beginTime = System.currentTimeMillis();
             try{
                 return method.invoke(realWorker,args);
             } catch (Exception e){
                 //TODO 如果有异常，可以记录到检测类的异常管理中
-            } finally
-{
-                Long cost = System.currentTimeMillis() - beginTime;
+            } finally {
+                long cost = System.currentTimeMillis() - beginTime;
                 String key = realWorker.getClass().getSimpleName()
                         + "." + realMethod.getName();
                 MonitorRegistry.getInstance().report(key,cost);

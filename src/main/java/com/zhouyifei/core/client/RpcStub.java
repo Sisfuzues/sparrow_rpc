@@ -41,6 +41,7 @@ public class RpcStub implements InvocationHandler {
         String interfaceName = method.getDeclaringClass().getName();
         String methodName = method.getName();
         RpcRequest request;
+
         if(objects==null){
             request = new RpcRequest(requestId,interfaceName, methodName,new Class[0], new Object[0]);
         }else{
@@ -51,21 +52,29 @@ public class RpcStub implements InvocationHandler {
         }
 
         log.info("客户端准备发起 RPC 调用:{}",request.methodName());
-
         Object res = null;
         ConfigManager config = ConfigManager.getInstance();
-        String ip = config.getRpcIp();
-        int port = config.getRpcPort();
+
+        ConfigManager.ServiceAddress serviceAddress = config.getServiceAddress(interfaceName);
+        if(serviceAddress == null){
+            log.error("未找到 service,请查看配置。");
+            throw new RuntimeException("未找到配置，service:" + interfaceName);
+        }
+
+        String ip = serviceAddress.ip();
+        int port = serviceAddress.port();
 
         log.info("链接微服务器 -> Ip:{} , Port:{}",ip,port);
+        ClientConnectionPool clientConnectionPool = ClientConnectionPool.getINSTANCE();
 
         CompletableFuture<Object> future = CompletableFuture.supplyAsync(()->{
-            try(Socket socket = new Socket(ip,port);
+            Socket socket = clientConnectionPool.getSocket(ip,port);
+            try{
                 OutputStream os = socket.getOutputStream();
                 ObjectOutputStream oss = new ObjectOutputStream(os);
                 InputStream is = socket.getInputStream();
                 ObjectInputStream ois = new ObjectInputStream(is);
-            ){
+
                 oss.writeObject(request);
                 oss.flush();
 
@@ -79,6 +88,8 @@ public class RpcStub implements InvocationHandler {
             }catch (IOException | ClassNotFoundException e){
                 log.error("客户端链接异常:",e);
                 throw new RuntimeException(e);
+            } finally {
+                clientConnectionPool.releaseSocket(ip,port,socket);
             }
         });
 

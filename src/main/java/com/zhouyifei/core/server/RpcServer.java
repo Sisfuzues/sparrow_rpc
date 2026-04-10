@@ -14,6 +14,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -79,50 +80,58 @@ public class RpcServer implements RpcServerMBean{
             OutputStream os = socket.getOutputStream();
             ObjectOutputStream oos = new ObjectOutputStream(os)){
 
-            RpcResponse response = new RpcResponse();
-            String requestId = null;
+            socket.setSoTimeout(60*1000);
 
-            try{
-                Object obj = ois.readObject();
+            while(true){
+                RpcResponse response = new RpcResponse();
+                String requestId = null;
 
-                if(!(obj instanceof RpcRequest rpcRequest)) {
-                    log.error("对象类型异常，不属于RpcRequest类。");
-                    response = RpcResponse.error(null,new RuntimeException("错误通信格式"),"通用错误格式。");
-                    oos.writeObject(response);
-                    oos.flush();
-                    return;
+                try{
+                    Object obj = ois.readObject();
+
+                    if(!(obj instanceof RpcRequest rpcRequest)) {
+                        log.error("对象类型异常，不属于RpcRequest类。");
+                        response = RpcResponse.error(null,new RuntimeException("错误通信格式"),"通用错误格式。");
+                        oos.writeObject(response);
+                        oos.flush();
+                        return;
+                    }
+
+                    log.info("收到来自{}的Rpc请求。",socket.getInetAddress());
+                    requestId = rpcRequest.requestId();
+                    String interfaceName = rpcRequest.interfaceName();
+                    String methodName = rpcRequest.methodName();
+                    Class<?>[] parameterTypes = rpcRequest.parameterTypes();
+                    Object[] args = rpcRequest.params();
+
+                    Object serviceInterface = serviceMap.get(interfaceName);
+                    if(serviceInterface==null) {
+                        log.error("{}实例不存在。",interfaceName);
+                        String exception = String.format("%s实例不存在。",interfaceName);
+                        response = RpcResponse.error(requestId,new RuntimeException(exception),"实例不存在,请查看API。");
+                        oos.writeObject(response);
+                        oos.flush();
+                        return;
+                    }
+
+                    Method serviceMethod = serviceInterface.getClass().getMethod(
+                            methodName,parameterTypes
+                    );
+
+                    Object res = serviceMethod.invoke(serviceInterface,args);
+                    response = RpcResponse.success(requestId,res);
+                } catch (SocketException e){
+                    log.warn("线程链接超时仍未有请求链接，准备断开链接。{}",socket.getInetAddress());
+                    break;
+                } catch (Exception e){
+                    response = RpcResponse.error(requestId,new RuntimeException(e),"出现运行时错误，请查看错误信息。");
+                    log.error("出现错误：",e);
                 }
 
-                log.info("收到来自{}的Rpc请求。",socket.getInetAddress());
-                requestId = rpcRequest.requestId();
-                String interfaceName = rpcRequest.interfaceName();
-                String methodName = rpcRequest.methodName();
-                Class<?>[] parameterTypes = rpcRequest.parameterTypes();
-                Object[] args = rpcRequest.params();
-
-                Object serviceInterface = serviceMap.get(interfaceName);
-                if(serviceInterface==null) {
-                    log.error("{}实例不存在。",interfaceName);
-                    String exception = String.format("%s实例不存在。",interfaceName);
-                    response = RpcResponse.error(requestId,new RuntimeException(exception),"实例不存在,请查看API。");
-                    oos.writeObject(response);
-                    oos.flush();
-                    return;
-                }
-
-                Method serviceMethod = serviceInterface.getClass().getMethod(
-                        methodName,parameterTypes
-                );
-
-                Object res = serviceMethod.invoke(serviceInterface,args);
-                response = RpcResponse.success(requestId,res);
-            } catch (Exception e){
-                response = RpcResponse.error(requestId,new RuntimeException(e),"出现运行时错误，请查看错误信息。");
-                log.error("出现错误：",e);
+                oos.writeObject(response);
+                oos.flush();
             }
 
-            oos.writeObject(response);
-            oos.flush();
         } catch (IOException e) {
             log.error("网络链接错误，请检查。具体信息:",e);
             throw new RuntimeException(e);
